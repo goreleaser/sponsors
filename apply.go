@@ -64,7 +64,7 @@ func apply(sponsorsPath, templatePath, outputPath, beginMarker, endMarker string
 		ByTier:   byTier,
 	}
 
-	tmplSrc, err := os.ReadFile(templatePath)
+	tmplSrc, err := readFileOrURL(templatePath)
 	if err != nil {
 		return fmt.Errorf("read template %s: %w", templatePath, err)
 	}

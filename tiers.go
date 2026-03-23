@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"sort"
 
 	"gopkg.in/yaml.v3"
@@ -19,7 +18,7 @@ type Config struct {
 
 // loadConfig reads a Config from the given path.
 func loadConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := readFileOrURL(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config %q: %w", path, err)
 	}

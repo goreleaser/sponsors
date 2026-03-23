@@ -24,15 +24,3 @@ tiers:
 aliases:
   leaanthony: wailsapp
   snapit-cypher: interviewpal-com
-
-# aliases:
-#   johndoe: acme-corp
-
-# external_sponsors:
-#   - name: Acme Corp
-#     id: acme-corp
-#     source: github
-#     website: https://acme.com
-#     image: https://github.com/acme-corp.png
-#     tier: gold
-#     end_date: "2027-03-23"
