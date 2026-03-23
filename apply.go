@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/caarlos0/log"
 	"github.com/spf13/cobra"
 )
 
@@ -90,7 +91,7 @@ func apply(sponsorsPath, templatePath, outputPath, beginMarker, endMarker string
 	if err := os.WriteFile(outputPath, []byte(updated), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", outputPath, err)
 	}
-	fmt.Printf("✓ Updated %s\n", outputPath)
+	log.WithField("output", outputPath).Info("updated file")
 	return nil
 }
 

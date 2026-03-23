@@ -6,9 +6,12 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/caarlos0/log"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 func newGenerateCmd() *cobra.Command {
@@ -22,8 +25,12 @@ apply any configured aliases and tier overrides, then write the result
 to a JSON file suitable for use with the apply command.
 
 Requires the GITHUB_TOKEN environment variable to be set.`,
-		Args: cobra.ExactArgs(1),
+		Args:    cobra.MaximumNArgs(1),
+		Example: "# Output to file:\nsponsors generate out.json\n# Output to STDOUT:\nsponsors generate -\n",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				args = []string{"-"}
+			}
 			return generate(configPath, args[0])
 		},
 	}
@@ -31,7 +38,7 @@ Requires the GITHUB_TOKEN environment variable to be set.`,
 	return cmd
 }
 
-func generate(configPath, outputPath string) error {
+func generate(configPath, output string) error {
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		return fmt.Errorf("GITHUB_TOKEN environment variable is required")
@@ -56,10 +63,10 @@ func generate(configPath, outputPath string) error {
 		if _, ok := resolvedTargets[target]; ok {
 			continue
 		}
-		fmt.Printf("Resolving alias target %q...\n", target)
+		log.WithField("target", target).Info("resolving alias target")
 		info, err := gh.FetchUserInfo(target)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "  warning: %v — using login as fallback\n", err)
+			log.WithError(err).Warn("using login as fallback")
 			resolvedTargets[target] = resolvedInfo{
 				name:    target,
 				id:      target,
@@ -81,28 +88,50 @@ func generate(configPath, outputPath string) error {
 	}
 
 	var all []rawSponsor
+	var mu sync.Mutex
+	var wg errgroup.Group
 
-	fmt.Printf("Fetching OpenCollective sponsors (%s)...\n", cfg.OpenCollectiveSlug)
-	ocSponsors, err := fetchOCSponsors(cfg.OpenCollectiveSlug)
-	if err != nil {
-		return fmt.Errorf("opencollective: %w", err)
-	}
-	fmt.Printf("  Found %d sponsor(s)\n", len(ocSponsors))
-	if len(ocSponsors) == 0 {
-		return fmt.Errorf("no sponsors from OpenCollective — API may not be responding correctly")
-	}
-	all = append(all, ocSponsors...)
+	wg.Go(func() error {
+		log := log.
+			WithField("source", "opencollective").
+			WithField("slug", cfg.OpenCollectiveSlug)
+		log.Info("fetching sponsors")
+		ocSponsors, err := fetchOCSponsors(cfg.OpenCollectiveSlug)
+		if err != nil {
+			return fmt.Errorf("opencollective: %w", err)
+		}
+		log.Infof("found %d sponsor(s)", len(ocSponsors))
+		if len(ocSponsors) == 0 {
+			return fmt.Errorf("no sponsors from OpenCollective — API may not be responding correctly")
+		}
+		mu.Lock()
+		all = append(all, ocSponsors...)
+		mu.Unlock()
+		return nil
+	})
 
-	fmt.Printf("Fetching GitHub sponsors (%s)...\n", cfg.GitHubUser)
-	ghSponsors, err := gh.fetchSponsors(cfg.GitHubUser)
-	if err != nil {
-		return fmt.Errorf("github: %w", err)
+	wg.Go(func() error {
+		log := log.
+			WithField("source", "github").
+			WithField("login", cfg.GitHubUser)
+		log.Info("fetching")
+		ghSponsors, err := gh.fetchSponsors(cfg.GitHubUser)
+		if err != nil {
+			return fmt.Errorf("github: %w", err)
+		}
+		log.Infof("found %d sponsor(s)", len(ghSponsors))
+		if len(ghSponsors) == 0 {
+			return fmt.Errorf("no sponsors from GitHub — API may not be responding correctly or token lacks permissions")
+		}
+		mu.Lock()
+		all = append(all, ghSponsors...)
+		mu.Unlock()
+		return nil
+	})
+
+	if err := wg.Wait(); err != nil {
+		return err
 	}
-	fmt.Printf("  Found %d sponsor(s)\n", len(ghSponsors))
-	if len(ghSponsors) == 0 {
-		return fmt.Errorf("no sponsors from GitHub — API may not be responding correctly or token lacks permissions")
-	}
-	all = append(all, ghSponsors...)
 
 	// Apply aliases.
 	for i, s := range all {
@@ -157,7 +186,10 @@ func generate(configPath, outputPath string) error {
 		if ext.EndDate != "" {
 			expiry, err := time.Parse("2006-01-02", ext.EndDate)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "warning: invalid end_date %q for external sponsor %q, skipping\n", ext.EndDate, ext.ID)
+				log.
+					WithField("end_date", ext.EndDate).
+					WithField("id", ext.ID).
+					Warn("invalid end_date format, skipping external sponsor")
 				continue
 			}
 			if today.After(expiry) {
@@ -177,7 +209,6 @@ func generate(configPath, outputPath string) error {
 		}
 	}
 
-
 	// Sort: highest tier first, then alphabetically by name.
 	sort.Slice(sponsors, func(i, j int) bool {
 		ri, rj := tierRank[sponsors[i].Tier], tierRank[sponsors[j].Tier]
@@ -187,25 +218,21 @@ func generate(configPath, outputPath string) error {
 		return sponsors[i].Name < sponsors[j].Name
 	})
 
-	fmt.Println("\nTier summary:")
-	counts := map[string]int{}
-	for _, s := range sponsors {
-		counts[s.Tier]++
-	}
-	for _, t := range cfg.Tiers {
-		if n := counts[strings.ToLower(t.ID)]; n > 0 {
-			fmt.Printf("  %s: %d\n", t.Name, n)
-		}
-	}
-
 	sf := SponsorFile{Tiers: cfg.Tiers, Sponsors: sponsors}
 	data, err := json.MarshalIndent(sf, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal sponsors: %w", err)
 	}
-	if err := os.WriteFile(outputPath, append(data, '\n'), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", outputPath, err)
+	if output == "-" {
+		if _, err := os.Stdout.Write(data); err != nil {
+			return fmt.Errorf("write to STDOUT: %w", err)
+		}
+		log.Infof("wrote %d sponsor(s) to STDOUT", len(sponsors))
+		return nil
 	}
-	fmt.Printf("\n✓ Wrote %d sponsor(s) to %s\n", len(sponsors), outputPath)
+	if err := os.WriteFile(output, data, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", output, err)
+	}
+	log.Infof("wrote %d sponsor(s) to %s", len(sponsors), output)
 	return nil
 }
