@@ -100,7 +100,7 @@ func generate(configPath, output string) error {
 		log := log.
 			WithField("source", "opencollective").
 			WithField("slug", cfg.OpenCollectiveSlug)
-		log.Info("fetching sponsors")
+		log.Info("fetching")
 		ocSponsors, err := fetchOCSponsors(cfg.OpenCollectiveSlug)
 		if err != nil {
 			return fmt.Errorf("opencollective: %w", err)
