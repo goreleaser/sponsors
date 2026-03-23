@@ -5,6 +5,14 @@ Fetches sponsors from [GitHub Sponsors](https://github.com/sponsors) and [OpenCo
 ## Install
 
 ```sh
+# brew:
+brew install --cask goreleaser/tap/sponsors
+
+# npm/npx:
+npm -ig @goreleaser/sponsors
+npx @goreleaser/sponsors
+
+# from source:
 go install github.com/goreleaser/sponsors@latest
 ```
 
