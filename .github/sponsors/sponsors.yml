@@ -20,3 +20,7 @@ tiers:
   - id: backer
     name: Backer
     monthly_rate: 0
+
+aliases:
+  leaanthony: wailsapp
+  snapit-cypher: interviewpal-com
