@@ -55,7 +55,7 @@ external_sponsors:
 Templates receive `.Sponsors`, `.Tiers`, and `.ByTier` (sponsors keyed by tier ID).
 A `dict` helper and `Sponsor.LogoWithSize(size int)` are available:
 
-```
+```go-template
 {{- define "tier" -}}
 {{- if $s := index . "sponsors" }}
 {{- range $s }}<a href="{{ .Website }}"><img src="{{ .LogoWithSize (index $ "size") }}" /></a>{{ end }}
@@ -259,6 +259,5 @@ A `dict` helper and `Sponsor.LogoWithSize(size int)` are available:
 - [Kazuma Watanabe](https://github.com/wata727)
 - [Oleg Balunenko](https://github.com/obalunenko)
 - [Sidartha Karna](https://github.com/sidarthakarna)
-
 
 <!-- sponsors:end -->
