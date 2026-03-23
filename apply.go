@@ -119,5 +119,10 @@ func replaceMarkers(content, begin, end, replacement string) (string, error) {
 		return "", fmt.Errorf("end marker %q not found", end)
 	}
 	endIdx += startIdx
-	return content[:startIdx+len(begin)] + "\n" + replacement + "\n" + content[endIdx:], nil
+	// Walk back to the start of the end-marker's line to preserve its indentation.
+	lineStart := endIdx
+	for lineStart > 0 && content[lineStart-1] != '\n' {
+		lineStart--
+	}
+	return content[:startIdx+len(begin)] + "\n" + replacement + "\n" + content[lineStart:], nil
 }
