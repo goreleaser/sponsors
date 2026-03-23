@@ -102,6 +102,15 @@ func fetchOCSponsors(slug string) ([]rawSponsor, error) {
 		if !m.IsActive || m.TotalDonations.Value <= 0 || m.Account.Name == "" || m.Tier == nil {
 			continue
 		}
+		// Skip anonymous/guest accounts — OC uses "Guest" and "Incognito" as
+		// placeholder names for contributors who have no public profile.
+		switch m.Account.Name {
+		case "Guest", "Incognito":
+			continue
+		}
+		if m.Account.Slug == "" || m.Account.Website == "" || m.Account.ImageURL == "" {
+			continue
+		}
 
 		monthly := m.Tier.Amount.Value
 		switch m.Tier.Frequency {

@@ -34,7 +34,7 @@ Requires the GITHUB_TOKEN environment variable to be set.`,
 			return generate(configPath, args[0])
 		},
 	}
-	cmd.Flags().StringVarP(&configPath, "config", "c", "", "path to config YAML (default: built-in sponsors.yml)")
+	cmd.Flags().StringVarP(&configPath, "config", "c", "sponsors.yml", "path to config YAML")
 	return cmd
 }
 
@@ -57,6 +57,11 @@ func generate(configPath, output string) error {
 		id      string
 		website string
 		image   string
+	}
+	if len(cfg.Aliases) == 0 {
+		log.Warn("no aliases configured")
+	} else {
+		log.Infof("configured %d alias(es)", len(cfg.Aliases))
 	}
 	resolvedTargets := map[string]resolvedInfo{}
 	for _, target := range cfg.Aliases {
@@ -134,12 +139,20 @@ func generate(configPath, output string) error {
 	}
 
 	// Apply aliases.
+	applied := map[string]bool{}
 	for i, s := range all {
 		if info, ok := aliasLookup[strings.ToLower(s.id)]; ok {
+			log.WithField("from", s.id).WithField("to", info.id).Info("applying alias")
 			all[i].name = info.name
 			all[i].id = info.id
 			all[i].website = info.website
 			all[i].image = info.image
+			applied[strings.ToLower(s.id)] = true
+		}
+	}
+	for source := range aliasLookup {
+		if !applied[source] {
+			log.WithField("source", source).Warn("alias source not found among fetched sponsors")
 		}
 	}
 
@@ -170,12 +183,13 @@ func generate(configPath, output string) error {
 			continue
 		}
 		sponsors = append(sponsors, Sponsor{
-			Name:    s.name,
-			ID:      s.id,
-			Source:  s.source,
-			Website: s.website,
-			Image:   s.image,
-			Tier:    tier,
+			Name:       s.name,
+			ID:         s.id,
+			Source:     s.source,
+			Website:    s.website,
+			Image:      s.image,
+			Tier:       tier,
+			MonthlyUSD: s.monthlyUSD,
 		})
 	}
 
@@ -209,13 +223,16 @@ func generate(configPath, output string) error {
 		}
 	}
 
-	// Sort: highest tier first, then alphabetically by name.
+	// Sort: highest tier first, then highest monthly contribution, then alphabetically.
 	sort.Slice(sponsors, func(i, j int) bool {
 		ri, rj := tierRank[sponsors[i].Tier], tierRank[sponsors[j].Tier]
 		if ri != rj {
 			return ri < rj
 		}
-		return sponsors[i].Name < sponsors[j].Name
+		if sponsors[i].MonthlyUSD != sponsors[j].MonthlyUSD {
+			return sponsors[i].MonthlyUSD > sponsors[j].MonthlyUSD
+		}
+		return strings.ToLower(sponsors[i].Name) < strings.ToLower(sponsors[j].Name)
 	})
 
 	sf := SponsorFile{Tiers: cfg.Tiers, Sponsors: sponsors}

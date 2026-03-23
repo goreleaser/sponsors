@@ -1,7 +1,6 @@
 package main
 
 import (
-	_ "embed"
 	"fmt"
 	"os"
 	"sort"
@@ -9,28 +8,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-//go:embed sponsors.yml
-var defaultConfigData []byte
-
 // Config holds all settings for the sponsors tool.
 type Config struct {
 	GitHubUser         string            `yaml:"github_user"`
 	OpenCollectiveSlug string            `yaml:"opencollective_slug"`
 	Tiers              []Tier            `yaml:"tiers"`
-	Aliases            map[string]string `yaml:"aliases"`          // source login -> target login
+	Aliases            map[string]string `yaml:"aliases"`           // source login -> target login
 	ExternalSponsors   []ExternalSponsor `yaml:"external_sponsors"` // manually managed entries
 }
 
-// loadConfig reads a Config from path.
-// If path is empty the embedded default sponsors.yml is used.
+// loadConfig reads a Config from the given path.
 func loadConfig(path string) (*Config, error) {
-	data := defaultConfigData
-	if path != "" {
-		var err error
-		data, err = os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("read config: %w", err)
-		}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read config %q: %w", path, err)
 	}
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {

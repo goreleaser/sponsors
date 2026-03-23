@@ -14,12 +14,13 @@ type Tier struct {
 
 // Sponsor represents a single sponsor from any platform.
 type Sponsor struct {
-	Name    string `json:"name"`
-	ID      string `json:"id"`
-	Source  string `json:"source"` // "github" or "opencollective"
-	Website string `json:"website"`
-	Image   string `json:"image"`
-	Tier    string `json:"tier"` // tier ID, e.g. "platinum"
+	Name       string  `json:"name"`
+	ID         string  `json:"id"`
+	Source     string  `json:"source"` // "github" or "opencollective"
+	Website    string  `json:"website"`
+	Image      string  `json:"image"`
+	Tier       string  `json:"tier"`        // tier ID, e.g. "platinum"
+	MonthlyUSD float64 `json:"monthly_usd"` // normalised monthly contribution in USD
 }
 
 // LogoWithSize returns the sponsor's image URL with a CDN size hint appended.
