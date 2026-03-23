@@ -1,5 +1,10 @@
 package main
 
+import (
+	"fmt"
+	"strings"
+)
+
 // Tier defines a sponsorship tier and its minimum monthly contribution threshold.
 type Tier struct {
 	ID          string  `yaml:"id"           json:"id"`
@@ -15,6 +20,27 @@ type Sponsor struct {
 	Website string `json:"website"`
 	Image   string `json:"image"`
 	Tier    string `json:"tier"` // tier ID, e.g. "platinum"
+}
+
+// LogoWithSize returns the sponsor's image URL with a CDN size hint appended.
+// It understands GitHub and OpenCollective avatar URLs; other URLs are returned
+// unchanged.
+func (s Sponsor) LogoWithSize(size int) string {
+	if s.Image == "" {
+		return ""
+	}
+	sep := "?"
+	if strings.Contains(s.Image, "?") {
+		sep = "&"
+	}
+	switch {
+	case strings.Contains(s.Image, "avatars.githubusercontent.com"):
+		return fmt.Sprintf("%s%ss=%d", s.Image, sep, size)
+	case strings.Contains(s.Image, "images.opencollective.com"):
+		return fmt.Sprintf("%s%sheight=%d", s.Image, sep, size)
+	default:
+		return s.Image
+	}
 }
 
 // SponsorFile is the structure written by generate and read by apply.

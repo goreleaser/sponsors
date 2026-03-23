@@ -69,7 +69,20 @@ func apply(sponsorsPath, templatePath, outputPath, beginMarker, endMarker string
 		return fmt.Errorf("read template %s: %w", templatePath, err)
 	}
 	funcMap := template.FuncMap{
-		"imageURL": sizedImageURL,
+		"dict": func(kv ...any) (map[string]any, error) {
+			if len(kv)%2 != 0 {
+				return nil, fmt.Errorf("dict requires an even number of arguments")
+			}
+			m := make(map[string]any, len(kv)/2)
+			for i := 0; i < len(kv); i += 2 {
+				k, ok := kv[i].(string)
+				if !ok {
+					return nil, fmt.Errorf("dict keys must be strings, got %T", kv[i])
+				}
+				m[k] = kv[i+1]
+			}
+			return m, nil
+		},
 	}
 	tmpl, err := template.New("sponsors").Funcs(funcMap).Parse(string(tmplSrc))
 	if err != nil {
@@ -107,24 +120,4 @@ func replaceMarkers(content, begin, end, replacement string) (string, error) {
 	}
 	endIdx += startIdx
 	return content[:startIdx+len(begin)] + "\n" + replacement + "\n" + content[endIdx:], nil
-}
-
-// sizedImageURL appends a size hint understood by GitHub and OpenCollective CDNs.
-// Use it in templates: {{ imageURL .Image 128 }}
-func sizedImageURL(url string, size int) string {
-	if url == "" {
-		return url
-	}
-	sep := "?"
-	if strings.Contains(url, "?") {
-		sep = "&"
-	}
-	switch {
-	case strings.Contains(url, "avatars.githubusercontent.com"):
-		return fmt.Sprintf("%s%ss=%d", url, sep, size)
-	case strings.Contains(url, "images.opencollective.com"):
-		return fmt.Sprintf("%s%sheight=%d", url, sep, size)
-	default:
-		return url
-	}
 }
