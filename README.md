@@ -76,15 +76,13 @@ A `dict` helper and `Sponsor.LogoWithSize(size int)` are available:
     href="https://github.com/SAP"
     target="_blank"
     rel="noopener sponsored"
-  >
-      <img
+  ><img
         src="https://avatars.githubusercontent.com/u/2531208?v=4&s=112"
         alt="SAP"
         width="112"
         height="112"
         style="border-radius: 8px; margin: 8px;"
-      />
-  </a>
+  /></a>
 </div>
 
 ### Gold Sponsors
@@ -94,28 +92,24 @@ A `dict` helper and `Sponsor.LogoWithSize(size int)` are available:
     href="https://github.com/mercedes-benz"
     target="_blank"
     rel="noopener sponsored"
-  >
-      <img
+  ><img
         src="https://avatars.githubusercontent.com/u/34240465?v=4&s=96"
         alt="Mercedes-Benz Group"
         width="96"
         height="96"
         style="border-radius: 8px; margin: 8px;"
-      />
-  </a>
+  /></a>
   <a
     href="https://github.com/nitrictech"
     target="_blank"
     rel="noopener sponsored"
-  >
-      <img
+  ><img
         src="https://avatars.githubusercontent.com/u/72055470?v=4&s=96"
         alt="nitric"
         width="96"
         height="96"
         style="border-radius: 8px; margin: 8px;"
-      />
-  </a>
+  /></a>
 </div>
 
 ### Silver Sponsors
@@ -125,28 +119,24 @@ A `dict` helper and `Sponsor.LogoWithSize(size int)` are available:
     href="https://depot.dev"
     target="_blank"
     rel="noopener sponsored"
-  >
-      <img
+  ><img
         src="https://images.opencollective.com/depot/39125a1/logo.png?height=80"
         alt="Depot"
         width="80"
         height="80"
         style="border-radius: 8px; margin: 8px;"
-      />
-  </a>
+  /></a>
   <a
     href="https://www.n-ix.com/"
     target="_blank"
     rel="noopener sponsored"
-  >
-      <img
+  ><img
         src="https://images.opencollective.com/n-ix-ltd/575a7a5/logo.png?height=80"
         alt="N-iX Ltd"
         width="80"
         height="80"
         style="border-radius: 8px; margin: 8px;"
-      />
-  </a>
+  /></a>
 </div>
 
 ### Bronze Sponsors
@@ -156,108 +146,62 @@ A `dict` helper and `Sponsor.LogoWithSize(size int)` are available:
     href="https://github.com/conetcloud"
     target="_blank"
     rel="noopener sponsored"
-  >
-      <img
+  ><img
         src="https://avatars.githubusercontent.com/u/35725664?v=4&s=64"
         alt="conet cloud"
         width="64"
         height="64"
         style="border-radius: 8px; margin: 8px;"
-      />
-  </a>
+  /></a>
   <a
     href="https://github.com/encoredev"
     target="_blank"
     rel="noopener sponsored"
-  >
-      <img
+  ><img
         src="https://avatars.githubusercontent.com/u/50438175?v=4&s=64"
         alt="Encore"
         width="64"
         height="64"
         style="border-radius: 8px; margin: 8px;"
-      />
-  </a>
+  /></a>
   <a
     href="https://github.com/comet-ml"
     target="_blank"
     rel="noopener sponsored"
-  >
-      <img
+  ><img
         src="https://avatars.githubusercontent.com/u/31487821?v=4&s=64"
         alt="Comet"
         width="64"
         height="64"
         style="border-radius: 8px; margin: 8px;"
-      />
-  </a>
+  /></a>
   <a
     href="https://about.gitea.com/"
     target="_blank"
     rel="noopener sponsored"
-  >
-      <img
+  ><img
         src="https://images.opencollective.com/gitea/bf35c2f/logo.png?height=64"
         alt="Gitea"
         width="64"
         height="64"
         style="border-radius: 8px; margin: 8px;"
-      />
-  </a>
+  /></a>
   <a
-    href="https://github.com/snapit-cypher"
+    href="www.interviewpal.com"
     target="_blank"
     rel="noopener sponsored"
-  >
-      <img
-        src="https://avatars.githubusercontent.com/u/115662654?v=4&s=64"
-        alt="snapit-cypher"
+  ><img
+        src="https://avatars.githubusercontent.com/u/268665632?v=4&s=64"
+        alt="InterviewPal.com"
         width="64"
         height="64"
         style="border-radius: 8px; margin: 8px;"
-      />
-  </a>
+  /></a>
 </div>
 
-### Backers
+### And more!
 
-- [Marcel Eichner](https://github.com/Ephigenia)
-- [Chatpong Voranartaksorn](https://github.com/psychvc)
-- [Automatio AI](https://automatio.ai/)
-- [Bileta Avioni](https://biletaavioni.al/)
-- [Bruno Paz](https://brunopaz.dev/)
-- [Calculators](https://calculator.now/)
-- [Feetpedia](https://feetpedia.com/)
-- [Jared Allard](https://github.com/jaredallard)
-- [Network Tools](https://gf.dev/)
-- [OhMyFacts](https://ohmyfacts.com/)
-- [Time.now Worldwide Developer API](https://time.now/developer)
-- [Time.so](https://time.so/)
-- [Video Downloader](https://orbitdownloader.com/)
-- [YouTube Transcript](https://transcript.you/)
-- [Alexey Palazhchenko](https://github.com/AlekSi)
-- [Ben](https://github.com/iwpnd)
-- [Ben Lechlitner](https://github.com/asphaltbuffet)
-- [Eden Zimbelman](https://github.com/zimeg)
-- [Francis Lavoie](https://github.com/francislavoie)
-- [joe miller](https://github.com/joemiller)
-- [KEINOS](https://github.com/KEINOS)
-- [Lea Anthony](https://github.com/leaanthony)
-- [Nicolas Gotchac](https://github.com/ngotchac)
-- [Ryan Nixon](https://github.com/taiidani)
-- [Alex Viscreanu](https://github.com/aexvir)
-- [David Birks](https://github.com/dbirks)
-- [Benjamin Kane](https://github.com/bbkane)
-- [Carl Tsai](https://github.com/moonape1226)
-- [Ethan Li](https://github.com/ethanjli)
-- [^.{5}\s.{2}ram.{3}$](https://github.com/umatare5)
-- [Andrew](https://github.com/wobondar)
-- [Baptiste Canton](https://github.com/batmac)
-- [David Dymko](https://github.com/ddymko)
-- [Jan De Dobbeleer](https://github.com/JanDeDobbeleer)
-- [Joseph Sirianni](https://github.com/jsirianni)
-- [Kazuma Watanabe](https://github.com/wata727)
-- [Oleg Balunenko](https://github.com/obalunenko)
-- [Sidartha Karna](https://github.com/sidarthakarna)
+See the full list [here](https://goreleaser.com/sponsors).
+
 
 <!-- sponsors:end -->

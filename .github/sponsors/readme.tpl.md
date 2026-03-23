@@ -13,15 +13,13 @@
     href="{{ .Website }}"
     target="_blank"
     rel="noopener sponsored"
-  >
-      <img
+  ><img
         src="{{ .LogoWithSize $size }}"
         alt="{{ .Name }}"
         width="{{ $size }}"
         height="{{ $size }}"
         style="border-radius: 8px; margin: 8px;"
-      />
-  </a>
+  /></a>
 {{- end }}
 </div>
 {{- end -}}
@@ -31,12 +29,8 @@
 {{- template "logo-tier" (dict "label" "Gold"     "size" 96  "sponsors" (index .ByTier "gold"))     -}}
 {{- template "logo-tier" (dict "label" "Silver"   "size" 80  "sponsors" (index .ByTier "silver"))   -}}
 {{- template "logo-tier" (dict "label" "Bronze"   "size" 64  "sponsors" (index .ByTier "bronze"))   -}}
-{{- with index .ByTier "backer" }}
+{{ printf "\n" }}
+### And more!
 
-### Backers
-{{- printf "\n" }}
-{{- range . }}
-- [{{ .Name }}]({{ .Website }})
-{{- end }}
-{{- end }}
+See the full list [here](https://goreleaser.com/sponsors).
 
