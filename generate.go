@@ -223,6 +223,13 @@ func generate(configPath, output string) error {
 		}
 	}
 
+	// Ensure all website URLs have a scheme.
+	for i, s := range sponsors {
+		if s.Website != "" && !strings.HasPrefix(s.Website, "http://") && !strings.HasPrefix(s.Website, "https://") {
+			sponsors[i].Website = "https://" + s.Website
+		}
+	}
+
 	// Sort: highest tier first, then highest monthly contribution, then alphabetically.
 	sort.Slice(sponsors, func(i, j int) bool {
 		ri, rj := tierRank[sponsors[i].Tier], tierRank[sponsors[j].Tier]
