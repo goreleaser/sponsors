@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -75,14 +76,14 @@ func generate(configPath, output string) error {
 			resolvedTargets[target] = resolvedInfo{
 				name:    target,
 				id:      target,
-				website: "https://github.com/" + target,
+				website: cmp.Or(info.Website, "https://github.com/"+target),
 				image:   "https://github.com/" + target + ".png",
 			}
 		} else {
 			resolvedTargets[target] = resolvedInfo{
 				name:    info.Name,
 				id:      info.Login,
-				website: info.Website,
+				website: cmp.Or(info.Website, "https://github.com/"+target),
 				image:   info.Image,
 			}
 		}

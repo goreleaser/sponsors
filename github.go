@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -78,8 +79,8 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 	      pageInfo { hasNextPage endCursor }
 	      nodes {
 	        sponsorEntity {
-	          ... on User         { login name url avatarUrl }
-	          ... on Organization { login name url avatarUrl }
+	          ... on User         { login name url avatarUrl websiteUrl }
+	          ... on Organization { login name url avatarUrl websiteUrl }
 	        }
 	        tier { monthlyPriceInDollars isOneTime }
 	        privacyLevel
@@ -95,10 +96,11 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 	}
 	type node struct {
 		SponsorEntity struct {
-			Login     string `json:"login"`
-			Name      string `json:"name"`
-			URL       string `json:"url"`
-			AvatarURL string `json:"avatarUrl"`
+			Login      string `json:"login"`
+			Name       string `json:"name"`
+			URL        string `json:"url"`
+			WebsiteURL string `json:"websiteUrl"`
+			AvatarURL  string `json:"avatarUrl"`
 		} `json:"sponsorEntity"`
 		Tier struct {
 			MonthlyPriceInDollars float64 `json:"monthlyPriceInDollars"`
@@ -169,7 +171,7 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 				id:         login,
 				name:       name,
 				source:     "github",
-				website:    n.SponsorEntity.URL,
+				website:    cmp.Or(n.SponsorEntity.WebsiteURL, n.SponsorEntity.URL),
 				image:      n.SponsorEntity.AvatarURL,
 				monthlyUSD: monthly,
 			})
@@ -223,13 +225,10 @@ func (c *githubClient) FetchUserInfo(login string) (UserInfo, error) {
 		return UserInfo{}, fmt.Errorf("decode user info %q: %w", login, err)
 	}
 
-	name := u.Name
-	if name == "" {
-		name = u.Login
-	}
-	website := u.Blog
-	if website == "" {
-		website = u.HTMLURL
-	}
-	return UserInfo{Name: name, Login: u.Login, Website: website, Image: u.AvatarURL}, nil
+	return UserInfo{
+		Name:    cmp.Or(u.Name, u.Login),
+		Login:   u.Login,
+		Website: cmp.Or(u.Blog, u.HTMLURL),
+		Image:   u.AvatarURL,
+	}, nil
 }
