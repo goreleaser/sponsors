@@ -1,38 +1,22 @@
 package main
 
 import (
-	"bytes"
 	"cmp"
-	"encoding/json"
+	"context"
 	"fmt"
-	"net/http"
-	"strings"
 	"time"
-)
 
-const (
-	githubGraphQLURL = "https://api.github.com/graphql"
-
-	// githubEntityFields is the GraphQL field list for both User and Organization.
-	githubEntityFields = `login name url avatarUrl websiteUrl`
+	"github.com/shurcooL/githubv4"
+	"golang.org/x/oauth2"
 )
 
 // githubEntity holds the common profile fields for a GitHub User or Organisation.
 type githubEntity struct {
-	Login      string `json:"login"`
-	Name       string `json:"name"`
-	URL        string `json:"url"`
-	WebsiteURL string `json:"websiteUrl"`
-	AvatarURL  string `json:"avatarUrl"`
-}
-
-func (e githubEntity) toUserInfo() UserInfo {
-	return UserInfo{
-		Name:    cmp.Or(e.Name, e.Login),
-		Login:   e.Login,
-		Website: cmp.Or(e.WebsiteURL, e.URL),
-		Image:   e.AvatarURL,
-	}
+	Login      string
+	Name       string
+	URL        string `graphql:"url"`
+	WebsiteURL string `graphql:"websiteUrl"`
+	AvatarURL  string `graphql:"avatarUrl"`
 }
 
 func (e githubEntity) toRawSponsor(source string, monthly float64) rawSponsor {
@@ -47,126 +31,72 @@ func (e githubEntity) toRawSponsor(source string, monthly float64) rawSponsor {
 }
 
 type githubClient struct {
-	token  string
-	client *http.Client
+	client *githubv4.Client
 }
 
 func newGithubClient(token string) *githubClient {
-	return &githubClient{
-		token:  token,
-		client: &http.Client{Timeout: 30 * time.Second},
-	}
-}
-
-func (c *githubClient) graphql(query string, variables map[string]any, out any) error {
-	body, err := json.Marshal(map[string]any{"query": query, "variables": variables})
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest(http.MethodPost, githubGraphQLURL, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("User-Agent", "goreleaser-sponsors")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("github graphql request: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("github graphql: unexpected status %d", resp.StatusCode)
-	}
-
-	var envelope struct {
-		Data   json.RawMessage `json:"data"`
-		Errors []struct {
-			Message string `json:"message"`
-		} `json:"errors"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return fmt.Errorf("github graphql: decode response: %w", err)
-	}
-	if len(envelope.Errors) > 0 {
-		msgs := make([]string, len(envelope.Errors))
-		for i, e := range envelope.Errors {
-			msgs[i] = e.Message
-		}
-		return fmt.Errorf("github graphql errors: %s", strings.Join(msgs, "; "))
-	}
-	return json.Unmarshal(envelope.Data, out)
+	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	httpClient := oauth2.NewClient(context.Background(), src)
+	return &githubClient{client: githubv4.NewClient(httpClient)}
 }
 
 // fetchSponsors returns active, public sponsors for the given GitHub user.
 // One-time sponsorships from the past year are included with their amount
 // divided by 12 to normalise to a monthly figure.
 func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
-	const query = `
-	query($user: String!, $cursor: String) {
-	  user(login: $user) {
-	    sponsorshipsAsMaintainer(first: 100, after: $cursor, activeOnly: true) {
-	      pageInfo { hasNextPage endCursor }
-	      nodes {
-	        sponsorEntity {
-	          ... on User         { ` + githubEntityFields + ` }
-	          ... on Organization { ` + githubEntityFields + ` }
-	        }
-	        tier { monthlyPriceInDollars isOneTime }
-	        privacyLevel
-	        createdAt
-	      }
-	    }
-	  }
-	}`
-
-	type pageInfo struct {
-		HasNextPage bool   `json:"hasNextPage"`
-		EndCursor   string `json:"endCursor"`
-	}
-	type node struct {
-		SponsorEntity githubEntity `json:"sponsorEntity"`
-		Tier          struct {
-			MonthlyPriceInDollars float64 `json:"monthlyPriceInDollars"`
-			IsOneTime             bool    `json:"isOneTime"`
-		} `json:"tier"`
-		PrivacyLevel string `json:"privacyLevel"`
-		CreatedAt    string `json:"createdAt"`
-	}
-	type result struct {
+	var q struct {
 		User struct {
 			SponsorshipsAsMaintainer struct {
-				PageInfo pageInfo `json:"pageInfo"`
-				Nodes    []node   `json:"nodes"`
-			} `json:"sponsorshipsAsMaintainer"`
-		} `json:"user"`
+				PageInfo struct {
+					HasNextPage bool
+					EndCursor   githubv4.String
+				}
+				Nodes []struct {
+					SponsorEntity struct {
+						AsUser         githubEntity `graphql:"... on User"`
+						AsOrganization githubEntity `graphql:"... on Organization"`
+					}
+					Tier struct {
+						MonthlyPriceInDollars int
+						IsOneTime             bool
+					}
+					PrivacyLevel string
+					CreatedAt    githubv4.DateTime
+				}
+			} `graphql:"sponsorshipsAsMaintainer(first: 100, after: $cursor, activeOnly: true)"`
+		} `graphql:"user(login: $user)"`
+	}
+
+	variables := map[string]any{
+		"user":   githubv4.String(user),
+		"cursor": (*githubv4.String)(nil),
 	}
 
 	oneYearAgo := time.Now().AddDate(-1, 0, 0)
 	seen := map[string]float64{} // login -> highest monthly amount seen so far
 	var sponsors []rawSponsor
-	var cursor *string
 
 	for {
-		vars := map[string]any{"user": user}
-		if cursor != nil {
-			vars["cursor"] = *cursor
-		}
-		var r result
-		if err := c.graphql(query, vars, &r); err != nil {
+		if err := c.client.Query(context.Background(), &q, variables); err != nil {
 			return nil, err
 		}
 
-		for _, n := range r.User.SponsorshipsAsMaintainer.Nodes {
-			if n.PrivacyLevel != "PUBLIC" || n.SponsorEntity.Login == "" {
+		for _, n := range q.User.SponsorshipsAsMaintainer.Nodes {
+			if n.PrivacyLevel != "PUBLIC" {
 				continue
 			}
 
-			monthly := n.Tier.MonthlyPriceInDollars
+			entity := n.SponsorEntity.AsUser
+			if entity.Login == "" {
+				entity = n.SponsorEntity.AsOrganization
+			}
+			if entity.Login == "" {
+				continue
+			}
+
+			monthly := float64(n.Tier.MonthlyPriceInDollars)
 			if n.Tier.IsOneTime {
-				createdAt, err := time.Parse(time.RFC3339, n.CreatedAt)
-				if err != nil || createdAt.Before(oneYearAgo) {
+				if n.CreatedAt.Before(oneYearAgo) {
 					continue
 				}
 				monthly /= 12
@@ -175,7 +105,7 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 				continue
 			}
 
-			login := n.SponsorEntity.Login
+			login := entity.Login
 			// Deduplicate within GitHub: keep the entry with the highest amount.
 			if prev, ok := seen[login]; ok && prev >= monthly {
 				continue
@@ -188,14 +118,13 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 				}
 			}
 
-			sponsors = append(sponsors, n.SponsorEntity.toRawSponsor("github", monthly))
+			sponsors = append(sponsors, entity.toRawSponsor("github", monthly))
 		}
 
-		pi := r.User.SponsorshipsAsMaintainer.PageInfo
-		if !pi.HasNextPage {
+		if !q.User.SponsorshipsAsMaintainer.PageInfo.HasNextPage {
 			break
 		}
-		cursor = &pi.EndCursor
+		variables["cursor"] = new(q.User.SponsorshipsAsMaintainer.PageInfo.EndCursor)
 	}
 
 	return sponsors, nil
@@ -210,29 +139,35 @@ type UserInfo struct {
 }
 
 // FetchUserInfo fetches public profile data for the given login via GraphQL.
-// It tries User first, then Organisation, to handle both account types.
+// repositoryOwner resolves both users and organisations without errors.
+// ProfileOwner is the interface implemented by both User and Organization.
 func (c *githubClient) FetchUserInfo(login string) (UserInfo, error) {
-	const query = `
-	query($login: String!) {
-	  user(login: $login) { ` + githubEntityFields + ` }
-	  organization(login: $login) { ` + githubEntityFields + ` }
-	}`
-
-	var result struct {
-		User         *githubEntity `json:"user"`
-		Organization *githubEntity `json:"organization"`
+	var q struct {
+		RepositoryOwner *struct {
+			Login     string
+			URL       string `graphql:"url"`
+			AvatarURL string `graphql:"avatarUrl"`
+			Profile   struct {
+				Name       string
+				WebsiteURL string `graphql:"websiteUrl"`
+			} `graphql:"... on ProfileOwner"`
+		} `graphql:"repositoryOwner(login: $login)"`
 	}
 
-	if err := c.graphql(query, map[string]any{"login": login}, &result); err != nil {
+	if err := c.client.Query(context.Background(), &q, map[string]any{
+		"login": githubv4.String(login),
+	}); err != nil {
 		return UserInfo{}, fmt.Errorf("fetch user info %q: %w", login, err)
 	}
-
-	switch {
-	case result.User != nil:
-		return result.User.toUserInfo(), nil
-	case result.Organization != nil:
-		return result.Organization.toUserInfo(), nil
-	default:
+	if q.RepositoryOwner == nil {
 		return UserInfo{}, fmt.Errorf("fetch user info %q: not found", login)
 	}
+
+	o := q.RepositoryOwner
+	return UserInfo{
+		Name:    cmp.Or(o.Profile.Name, o.Login),
+		Login:   o.Login,
+		Website: cmp.Or(o.Profile.WebsiteURL, o.URL),
+		Image:   o.AvatarURL,
+	}, nil
 }
