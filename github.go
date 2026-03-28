@@ -12,8 +12,39 @@ import (
 
 const (
 	githubGraphQLURL = "https://api.github.com/graphql"
-	githubRESTURL    = "https://api.github.com"
+
+	// githubEntityFields is the GraphQL field list for both User and Organization.
+	githubEntityFields = `login name url avatarUrl websiteUrl`
 )
+
+// githubEntity holds the common profile fields for a GitHub User or Organisation.
+type githubEntity struct {
+	Login      string `json:"login"`
+	Name       string `json:"name"`
+	URL        string `json:"url"`
+	WebsiteURL string `json:"websiteUrl"`
+	AvatarURL  string `json:"avatarUrl"`
+}
+
+func (e githubEntity) toUserInfo() UserInfo {
+	return UserInfo{
+		Name:    cmp.Or(e.Name, e.Login),
+		Login:   e.Login,
+		Website: cmp.Or(e.WebsiteURL, e.URL),
+		Image:   e.AvatarURL,
+	}
+}
+
+func (e githubEntity) toRawSponsor(source string, monthly float64) rawSponsor {
+	return rawSponsor{
+		id:         e.Login,
+		name:       cmp.Or(e.Name, e.Login),
+		source:     source,
+		website:    cmp.Or(e.WebsiteURL, e.URL),
+		image:      e.AvatarURL,
+		monthlyUSD: monthly,
+	}
+}
 
 type githubClient struct {
 	token  string
@@ -79,8 +110,8 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 	      pageInfo { hasNextPage endCursor }
 	      nodes {
 	        sponsorEntity {
-	          ... on User         { login name url avatarUrl websiteUrl }
-	          ... on Organization { login name url avatarUrl websiteUrl }
+	          ... on User         { ` + githubEntityFields + ` }
+	          ... on Organization { ` + githubEntityFields + ` }
 	        }
 	        tier { monthlyPriceInDollars isOneTime }
 	        privacyLevel
@@ -95,14 +126,8 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 		EndCursor   string `json:"endCursor"`
 	}
 	type node struct {
-		SponsorEntity struct {
-			Login      string `json:"login"`
-			Name       string `json:"name"`
-			URL        string `json:"url"`
-			WebsiteURL string `json:"websiteUrl"`
-			AvatarURL  string `json:"avatarUrl"`
-		} `json:"sponsorEntity"`
-		Tier struct {
+		SponsorEntity githubEntity `json:"sponsorEntity"`
+		Tier          struct {
 			MonthlyPriceInDollars float64 `json:"monthlyPriceInDollars"`
 			IsOneTime             bool    `json:"isOneTime"`
 		} `json:"tier"`
@@ -163,18 +188,7 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 				}
 			}
 
-			name := n.SponsorEntity.Name
-			if name == "" {
-				name = login
-			}
-			sponsors = append(sponsors, rawSponsor{
-				id:         login,
-				name:       name,
-				source:     "github",
-				website:    cmp.Or(n.SponsorEntity.WebsiteURL, n.SponsorEntity.URL),
-				image:      n.SponsorEntity.AvatarURL,
-				monthlyUSD: monthly,
-			})
+			sponsors = append(sponsors, n.SponsorEntity.toRawSponsor("github", monthly))
 		}
 
 		pi := r.User.SponsorshipsAsMaintainer.PageInfo
@@ -195,40 +209,30 @@ type UserInfo struct {
 	Image   string
 }
 
-// FetchUserInfo fetches public profile data for the given login via the REST API.
+// FetchUserInfo fetches public profile data for the given login via GraphQL.
+// It tries User first, then Organisation, to handle both account types.
 func (c *githubClient) FetchUserInfo(login string) (UserInfo, error) {
-	req, err := http.NewRequest(http.MethodGet, githubRESTURL+"/users/"+login, nil)
-	if err != nil {
-		return UserInfo{}, err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("User-Agent", "goreleaser-sponsors")
-	req.Header.Set("Accept", "application/vnd.github+json")
+	const query = `
+	query($login: String!) {
+	  user(login: $login) { ` + githubEntityFields + ` }
+	  organization(login: $login) { ` + githubEntityFields + ` }
+	}`
 
-	resp, err := c.client.Do(req)
-	if err != nil {
+	var result struct {
+		User         *githubEntity `json:"user"`
+		Organization *githubEntity `json:"organization"`
+	}
+
+	if err := c.graphql(query, map[string]any{"login": login}, &result); err != nil {
 		return UserInfo{}, fmt.Errorf("fetch user info %q: %w", login, err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return UserInfo{}, fmt.Errorf("fetch user info %q: status %d", login, resp.StatusCode)
-	}
 
-	var u struct {
-		Login     string `json:"login"`
-		Name      string `json:"name"`
-		AvatarURL string `json:"avatar_url"`
-		Blog      string `json:"blog"`
-		HTMLURL   string `json:"html_url"`
+	switch {
+	case result.User != nil:
+		return result.User.toUserInfo(), nil
+	case result.Organization != nil:
+		return result.Organization.toUserInfo(), nil
+	default:
+		return UserInfo{}, fmt.Errorf("fetch user info %q: not found", login)
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
-		return UserInfo{}, fmt.Errorf("decode user info %q: %w", login, err)
-	}
-
-	return UserInfo{
-		Name:    cmp.Or(u.Name, u.Login),
-		Login:   u.Login,
-		Website: cmp.Or(u.Blog, u.HTMLURL),
-		Image:   u.AvatarURL,
-	}, nil
 }
