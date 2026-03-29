@@ -2,40 +2,46 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/caarlos0/log"
 )
 
 const ocGraphQLURL = "https://api.opencollective.com/graphql/v2"
+
+const query = `query($slug: String!) {
+  collective(slug: $slug) {
+	members(role: BACKER) {
+	  nodes {
+		account {
+		  name
+		  slug
+		  website
+		  imageUrl
+		}
+		tier {
+		  amount { value }
+		  frequency
+		}
+		totalDonations { value }
+		since
+		isActive
+	  }
+	}
+  }
+}`
 
 // fetchOCSponsors returns active sponsors for the given OpenCollective collective.
 // Recurring (monthly/yearly) and recent one-time contributions are included.
 // One-time and yearly amounts are normalised to a monthly figure.
 func fetchOCSponsors(slug string) ([]rawSponsor, error) {
-	const query = `
-	query($slug: String!) {
-	  collective(slug: $slug) {
-	    members(role: BACKER) {
-	      nodes {
-	        account {
-	          name
-	          slug
-	          website
-	          imageUrl
-	        }
-	        tier {
-	          amount { value }
-	          frequency
-	        }
-	        totalDonations { value }
-	        since
-	        isActive
-	      }
-	    }
-	  }
-	}`
+	log := log.
+		WithField("source", "opencollective").
+		WithField("slug", slug)
 
 	payload, err := json.Marshal(map[string]any{
 		"query":     query,
@@ -62,31 +68,6 @@ func fetchOCSponsors(slug string) ([]rawSponsor, error) {
 		return nil, fmt.Errorf("opencollective: unexpected status %d", resp.StatusCode)
 	}
 
-	type member struct {
-		Account struct {
-			Name     string `json:"name"`
-			Slug     string `json:"slug"`
-			Website  string `json:"website"`
-			ImageURL string `json:"imageUrl"`
-		} `json:"account"`
-		Tier *struct {
-			Amount    struct{ Value float64 `json:"value"` } `json:"amount"`
-			Frequency string                                 `json:"frequency"`
-		} `json:"tier"`
-		TotalDonations struct{ Value float64 `json:"value"` } `json:"totalDonations"`
-		Since          string `json:"since"`
-		IsActive       bool   `json:"isActive"`
-	}
-	var result struct {
-		Data struct {
-			Collective struct {
-				Members struct {
-					Nodes []member `json:"nodes"`
-				} `json:"members"`
-			} `json:"collective"`
-		} `json:"data"`
-		Errors []struct{ Message string `json:"message"` } `json:"errors"`
-	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("opencollective: decode response: %w", err)
 	}
@@ -94,47 +75,32 @@ func fetchOCSponsors(slug string) ([]rawSponsor, error) {
 		return nil, fmt.Errorf("opencollective graphql error: %s", result.Errors[0].Message)
 	}
 
-	oneYearAgo := time.Now().AddDate(-1, 0, 0)
 	seen := map[string]float64{} // slug -> highest monthly amount seen so far
 	var sponsors []rawSponsor
 
 	for _, m := range result.Data.Collective.Members.Nodes {
-		if !m.IsActive || m.TotalDonations.Value <= 0 || m.Account.Name == "" || m.Tier == nil {
-			continue
-		}
 		// Skip anonymous/guest accounts — OC uses "Guest" and "Incognito" as
 		// placeholder names for contributors who have no public profile.
+		log := log.WithField("account", m.Account.Slug)
 		switch m.Account.Name {
 		case "Guest", "Incognito":
 			continue
 		}
-		if m.Account.Slug == "" || m.Account.Website == "" || m.Account.ImageURL == "" {
+		if !m.IsActive {
+			log.Debug("ignore: not active")
 			continue
 		}
 
-		monthly := m.Tier.Amount.Value
-		switch m.Tier.Frequency {
-		case "MONTHLY":
-			// use as-is
-		case "YEARLY":
-			monthly /= 12
-		case "ONETIME":
-			since, err := parseTime(m.Since)
-			if err != nil || since.Before(oneYearAgo) {
-				continue
-			}
-			monthly /= 12
-		default:
-			continue
-		}
-
+		monthly := getMonthly(m)
 		if monthly <= 0 {
+			log.Debug("ignore: monthly is 0")
 			continue
 		}
 
 		slug := m.Account.Slug
 		// Deduplicate within OpenCollective: keep the highest amount.
 		if prev, ok := seen[slug]; ok && prev >= monthly {
+			log.Debug("ignore: already seen")
 			continue
 		}
 		seen[slug] = monthly
@@ -147,7 +113,7 @@ func fetchOCSponsors(slug string) ([]rawSponsor, error) {
 
 		sponsors = append(sponsors, rawSponsor{
 			id:         slug,
-			name:       m.Account.Name,
+			name:       cmp.Or(m.Account.Name, m.Account.Slug),
 			source:     "opencollective",
 			website:    m.Account.Website,
 			image:      m.Account.ImageURL,
@@ -156,6 +122,66 @@ func fetchOCSponsors(slug string) ([]rawSponsor, error) {
 	}
 
 	return sponsors, nil
+}
+
+type ocMember struct {
+	Account struct {
+		Name     string `json:"name"`
+		Slug     string `json:"slug"`
+		Website  string `json:"website"`
+		ImageURL string `json:"imageUrl"`
+	} `json:"account"`
+	Tier *struct {
+		Amount struct {
+			Value float64 `json:"value"`
+		} `json:"amount"`
+		Frequency string `json:"frequency"`
+	} `json:"tier"`
+	TotalDonations struct {
+		Value float64 `json:"value"`
+	} `json:"totalDonations"`
+	Since    string `json:"since"`
+	IsActive bool   `json:"isActive"`
+}
+
+var result struct {
+	Data struct {
+		Collective struct {
+			Members struct {
+				Nodes []ocMember `json:"nodes"`
+			} `json:"members"`
+		} `json:"collective"`
+	} `json:"data"`
+	Errors []struct {
+		Message string `json:"message"`
+	} `json:"errors"`
+}
+
+var oneYearAgo = time.Now().AddDate(-1, 0, 0)
+
+func getMonthly(m ocMember) float64 {
+	frequency := "ONETIME"
+	value := m.TotalDonations.Value
+	if m.Tier != nil {
+		frequency = m.Tier.Frequency
+		value = m.Tier.Amount.Value
+	}
+	switch frequency {
+	case "MONTHLY":
+		// use as-is
+	case "YEARLY":
+		value /= 12
+	case "ONETIME":
+		since, err := parseTime(m.Since)
+		if err != nil || since.Before(oneYearAgo) {
+			return 0
+		}
+		value /= 12
+	default:
+		log.Warn("ignore unknown frequency: " + m.Tier.Frequency)
+		return 0
+	}
+	return value
 }
 
 // parseTime attempts to parse an ISO 8601 timestamp as returned by the
