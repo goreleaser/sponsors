@@ -83,9 +83,7 @@ func apply(sponsorsPath, templatePath, outputPath, beginMarker, endMarker string
 			}
 			return m, nil
 		},
-		"imageURL": func(url string, size int) string {
-			return (Sponsor{Image: url}).LogoWithSize(size)
-		},
+		"imageURL": imageURL,
 	}
 	tmpl, err := template.New("sponsors").Funcs(funcMap).Parse(string(tmplSrc))
 	if err != nil {
@@ -128,5 +126,5 @@ func replaceMarkers(content, begin, end, replacement string) (string, error) {
 	for lineStart > 0 && content[lineStart-1] != '\n' {
 		lineStart--
 	}
-	return content[:startIdx+len(begin)] + "\n" + replacement + "\n" + content[lineStart:], nil
+	return content[:afterBegin] + "\n" + replacement + "\n" + content[lineStart:], nil
 }

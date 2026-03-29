@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -27,21 +28,28 @@ type Sponsor struct {
 // It understands GitHub and OpenCollective avatar URLs; other URLs are returned
 // unchanged.
 func (s Sponsor) LogoWithSize(size int) string {
-	if s.Image == "" {
+	return imageURL(s.Image, size)
+}
+
+func imageURL(rawURL string, size int) string {
+	if rawURL == "" {
 		return ""
 	}
-	sep := "?"
-	if strings.Contains(s.Image, "?") {
-		sep = "&"
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
 	}
+	q := u.Query()
 	switch {
-	case strings.Contains(s.Image, "avatars.githubusercontent.com"):
-		return fmt.Sprintf("%s%ss=%d", s.Image, sep, size)
-	case strings.Contains(s.Image, "images.opencollective.com"):
-		return fmt.Sprintf("%s%sheight=%d", s.Image, sep, size)
+	case strings.Contains(u.Host, "avatars.githubusercontent.com"):
+		q.Set("s", fmt.Sprintf("%d", size))
+	case strings.Contains(u.Host, "images.opencollective.com"):
+		q.Set("height", fmt.Sprintf("%d", size))
 	default:
-		return s.Image
+		return rawURL
 	}
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 // SponsorFile is the structure written by generate and read by apply.
@@ -65,7 +73,7 @@ type ExternalSponsor struct {
 	EndDate string `yaml:"end_date" json:"end_date,omitempty"`
 }
 
-// before tier assignment and deduplication.
+// rawSponsor holds sponsor data before tier assignment and deduplication.
 type rawSponsor struct {
 	id         string
 	name       string
@@ -74,5 +82,3 @@ type rawSponsor struct {
 	image      string
 	monthlyUSD float64
 }
-
-
