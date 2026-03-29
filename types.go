@@ -1,9 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"net/url"
-	"strings"
+	"strconv"
 )
 
 // Tier defines a sponsorship tier and its minimum monthly contribution threshold.
@@ -40,11 +39,11 @@ func imageURL(rawURL string, size int) string {
 		return rawURL
 	}
 	q := u.Query()
-	switch {
-	case strings.Contains(u.Host, "avatars.githubusercontent.com"):
-		q.Set("s", fmt.Sprintf("%d", size))
-	case strings.Contains(u.Host, "images.opencollective.com"):
-		q.Set("height", fmt.Sprintf("%d", size))
+	switch u.Hostname() {
+	case "avatars.githubusercontent.com":
+		q.Set("s", strconv.Itoa(size))
+	case "images.opencollective.com":
+		q.Set("height", strconv.Itoa(size))
 	default:
 		return rawURL
 	}
