@@ -73,7 +73,6 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 	}
 
 	oneYearAgo := time.Now().AddDate(-1, 0, 0)
-	seen := map[string]float64{} // login -> highest monthly amount seen so far
 	var sponsors []rawSponsor
 
 	for {
@@ -103,19 +102,6 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 			}
 			if monthly <= 0 {
 				continue
-			}
-
-			login := entity.Login
-			// Deduplicate within GitHub: keep the entry with the highest amount.
-			if prev, ok := seen[login]; ok && prev >= monthly {
-				continue
-			}
-			seen[login] = monthly
-			for i, s := range sponsors {
-				if s.id == login {
-					sponsors = append(sponsors[:i], sponsors[i+1:]...)
-					break
-				}
 			}
 
 			sponsors = append(sponsors, entity.toRawSponsor("github", monthly))

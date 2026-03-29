@@ -68,6 +68,18 @@ func fetchOCSponsors(slug string) ([]rawSponsor, error) {
 		return nil, fmt.Errorf("opencollective: unexpected status %d", resp.StatusCode)
 	}
 
+	var result struct {
+		Data struct {
+			Collective struct {
+				Members struct {
+					Nodes []ocMember `json:"nodes"`
+				} `json:"members"`
+			} `json:"collective"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("opencollective: decode response: %w", err)
 	}
@@ -75,7 +87,6 @@ func fetchOCSponsors(slug string) ([]rawSponsor, error) {
 		return nil, fmt.Errorf("opencollective graphql error: %s", result.Errors[0].Message)
 	}
 
-	seen := map[string]float64{} // slug -> highest monthly amount seen so far
 	var sponsors []rawSponsor
 
 	for _, m := range result.Data.Collective.Members.Nodes {
@@ -98,19 +109,6 @@ func fetchOCSponsors(slug string) ([]rawSponsor, error) {
 		}
 
 		slug := m.Account.Slug
-		// Deduplicate within OpenCollective: keep the highest amount.
-		if prev, ok := seen[slug]; ok && prev >= monthly {
-			log.Debug("ignore: already seen")
-			continue
-		}
-		seen[slug] = monthly
-		for i, s := range sponsors {
-			if s.id == slug {
-				sponsors = append(sponsors[:i], sponsors[i+1:]...)
-				break
-			}
-		}
-
 		sponsors = append(sponsors, rawSponsor{
 			id:         slug,
 			name:       cmp.Or(m.Account.Name, m.Account.Slug),
@@ -144,22 +142,8 @@ type ocMember struct {
 	IsActive bool   `json:"isActive"`
 }
 
-var result struct {
-	Data struct {
-		Collective struct {
-			Members struct {
-				Nodes []ocMember `json:"nodes"`
-			} `json:"members"`
-		} `json:"collective"`
-	} `json:"data"`
-	Errors []struct {
-		Message string `json:"message"`
-	} `json:"errors"`
-}
-
-var oneYearAgo = time.Now().AddDate(-1, 0, 0)
-
 func getMonthly(m ocMember) float64 {
+	oneYearAgo := time.Now().AddDate(-1, 0, 0)
 	frequency := "ONETIME"
 	value := m.TotalDonations.Value
 	if m.Tier != nil {
@@ -178,7 +162,7 @@ func getMonthly(m ocMember) float64 {
 		}
 		value /= 12
 	default:
-		log.Warn("ignore unknown frequency: " + m.Tier.Frequency)
+		log.Warn("ignore unknown frequency: " + frequency)
 		return 0
 	}
 	return value

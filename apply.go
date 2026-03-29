@@ -83,6 +83,9 @@ func apply(sponsorsPath, templatePath, outputPath, beginMarker, endMarker string
 			}
 			return m, nil
 		},
+		"imageURL": func(url string, size int) string {
+			return (Sponsor{Image: url}).LogoWithSize(size)
+		},
 	}
 	tmpl, err := template.New("sponsors").Funcs(funcMap).Parse(string(tmplSrc))
 	if err != nil {
@@ -114,11 +117,12 @@ func replaceMarkers(content, begin, end, replacement string) (string, error) {
 	if startIdx == -1 {
 		return "", fmt.Errorf("begin marker %q not found", begin)
 	}
-	endIdx := strings.Index(content[startIdx:], end)
+	afterBegin := startIdx + len(begin)
+	endIdx := strings.Index(content[afterBegin:], end)
 	if endIdx == -1 {
 		return "", fmt.Errorf("end marker %q not found", end)
 	}
-	endIdx += startIdx
+	endIdx += afterBegin
 	// Walk back to the start of the end-marker's line to preserve its indentation.
 	lineStart := endIdx
 	for lineStart > 0 && content[lineStart-1] != '\n' {

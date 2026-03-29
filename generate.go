@@ -71,20 +71,20 @@ func generate(configPath, output string) error {
 		}
 		log.WithField("target", target).Info("resolving alias target")
 		info, err := gh.FetchUserInfo(target)
-		if err != nil {
-			log.WithError(err).Warn("using login as fallback")
-			resolvedTargets[target] = resolvedInfo{
-				name:    target,
-				id:      target,
-				website: cmp.Or(info.Website, "https://github.com/"+target),
-				image:   "https://github.com/" + target + ".png",
-			}
-		} else {
+		if err == nil {
 			resolvedTargets[target] = resolvedInfo{
 				name:    info.Name,
 				id:      info.Login,
 				website: cmp.Or(info.Website, "https://github.com/"+target),
 				image:   info.Image,
+			}
+		} else {
+			log.WithError(err).Warn("using login as fallback")
+			resolvedTargets[target] = resolvedInfo{
+				name:    target,
+				id:      target,
+				website: "https://github.com/" + target,
+				image:   "https://github.com/" + target + ".png",
 			}
 		}
 	}

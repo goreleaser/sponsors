@@ -61,7 +61,7 @@ type TemplateData struct {
 // fields as Sponsor plus an optional end_date (YYYY-MM-DD). Entries whose
 // end_date is in the past are silently ignored.
 type ExternalSponsor struct {
-	Sponsor  `yaml:",inline"`
+	Sponsor `yaml:",inline"`
 	EndDate string `yaml:"end_date" json:"end_date,omitempty"`
 }
 
@@ -74,3 +74,5 @@ type rawSponsor struct {
 	image      string
 	monthlyUSD float64
 }
+
+
