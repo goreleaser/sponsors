@@ -19,7 +19,7 @@ jobs:
       - run: go build -o sponsors .
       - run: ./sponsors generate --config gh://goreleaser/.github/sponsors.yml sponsors.json
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          GITHUB_TOKEN: ${{ secrets.SPONSORS_TOKEN }}
       - run: ./sponsors apply sponsors.json gh://goreleaser/.github/sponsors.tpl.md README.md
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
