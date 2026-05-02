@@ -108,7 +108,7 @@ func generate(configPath, output string) error {
 		}
 		log.Infof("found %d sponsor(s)", len(ocSponsors))
 		if len(ocSponsors) == 0 {
-			return fmt.Errorf("no sponsors from OpenCollective — API may not be responding correctly")
+			return nil
 		}
 		mu.Lock()
 		all = append(all, ocSponsors...)
