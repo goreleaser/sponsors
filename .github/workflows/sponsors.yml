@@ -21,7 +21,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.SPONSORS_TOKEN }}
       - run: ./sponsors apply sponsors.json gh://goreleaser/.github/sponsors.tpl.md README.md
-      - uses: stefanzweifel/git-auto-commit-action@v7
+      - uses: stefanzweifel/git-auto-commit-action@04702edda442b2e678b25b537cec683a1493fcb9 # v7.1.0
         with:
           commit_message: "chore: update sponsors"
           file_pattern: "README.md"
