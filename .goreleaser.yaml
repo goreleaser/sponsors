@@ -13,6 +13,11 @@ metadata:
 gomod:
   proxy: true
 
+changelog:
+  sort: asc
+  use: github
+  format: '{{ .SHA }}: {{ .Message }}{{ if and (not .IsNightly) .Logins }} ({{ .Logins | listExclude "^@Copilot$" | englishJoin }}){{ end }}'
+
 builds:
   - env:
       - CGO_ENABLED=0
