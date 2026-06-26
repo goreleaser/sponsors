@@ -98,6 +98,10 @@ func generate(configPath, output string) error {
 	var wg errgroup.Group
 
 	wg.Go(func() error {
+		if cfg.OpenCollectiveSlug == "" {
+			log.WithField("source", "opencollective").Debug("no slug configured, skipping")
+			return nil
+		}
 		log := log.
 			WithField("source", "opencollective").
 			WithField("slug", cfg.OpenCollectiveSlug)

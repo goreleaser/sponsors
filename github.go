@@ -40,31 +40,38 @@ func newGithubClient(token string) *githubClient {
 	return &githubClient{client: githubv4.NewClient(httpClient)}
 }
 
-// fetchSponsors returns active, public sponsors for the given GitHub user.
-// One-time sponsorships from the past year are included with their amount
-// divided by 12 to normalise to a monthly figure.
+// fetchSponsors returns the public sponsors for the given GitHub account:
+// currently-active recurring sponsorships plus one-time payments from the past
+// year. The account may be either a user or an organisation: both implement the
+// Sponsorable interface, so we resolve it via repositoryOwner rather than the
+// user field, which only resolves User accounts.
+// One-time sponsorships are included with their amount divided by 12 to
+// normalise to a monthly figure.
 func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 	var q struct {
-		User struct {
-			SponsorshipsAsMaintainer struct {
-				PageInfo struct {
-					HasNextPage bool
-					EndCursor   githubv4.String
-				}
-				Nodes []struct {
-					SponsorEntity struct {
-						AsUser         githubEntity `graphql:"... on User"`
-						AsOrganization githubEntity `graphql:"... on Organization"`
+		RepositoryOwner struct {
+			Sponsorable struct {
+				SponsorshipsAsMaintainer struct {
+					PageInfo struct {
+						HasNextPage bool
+						EndCursor   githubv4.String
 					}
-					Tier struct {
-						MonthlyPriceInDollars int
-						IsOneTime             bool
+					Nodes []struct {
+						SponsorEntity struct {
+							AsUser         githubEntity `graphql:"... on User"`
+							AsOrganization githubEntity `graphql:"... on Organization"`
+						}
+						Tier struct {
+							MonthlyPriceInDollars int
+							IsOneTime             bool
+						}
+						IsActive     bool
+						PrivacyLevel string
+						CreatedAt    githubv4.DateTime
 					}
-					PrivacyLevel string
-					CreatedAt    githubv4.DateTime
-				}
-			} `graphql:"sponsorshipsAsMaintainer(first: 100, after: $cursor, activeOnly: true)"`
-		} `graphql:"user(login: $user)"`
+				} `graphql:"sponsorshipsAsMaintainer(first: 100, after: $cursor, activeOnly: false)"`
+			} `graphql:"... on Sponsorable"`
+		} `graphql:"repositoryOwner(login: $user)"`
 	}
 
 	variables := map[string]any{
@@ -80,7 +87,7 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 			return nil, err
 		}
 
-		for _, n := range q.User.SponsorshipsAsMaintainer.Nodes {
+		for _, n := range q.RepositoryOwner.Sponsorable.SponsorshipsAsMaintainer.Nodes {
 			if n.PrivacyLevel != "PUBLIC" {
 				continue
 			}
@@ -90,6 +97,14 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 				entity = n.SponsorEntity.AsOrganization
 			}
 			if entity.Login == "" {
+				continue
+			}
+
+			// We query with activeOnly: false so that one-time payments (which
+			// become inactive immediately after charging) are still returned.
+			// One-time sponsorships count for a year from their creation date;
+			// recurring sponsorships only count while still active.
+			if !n.Tier.IsOneTime && !n.IsActive {
 				continue
 			}
 
@@ -107,10 +122,10 @@ func (c *githubClient) fetchSponsors(user string) ([]rawSponsor, error) {
 			sponsors = append(sponsors, entity.toRawSponsor("github", monthly))
 		}
 
-		if !q.User.SponsorshipsAsMaintainer.PageInfo.HasNextPage {
+		if !q.RepositoryOwner.Sponsorable.SponsorshipsAsMaintainer.PageInfo.HasNextPage {
 			break
 		}
-		variables["cursor"] = new(q.User.SponsorshipsAsMaintainer.PageInfo.EndCursor)
+		variables["cursor"] = new(q.RepositoryOwner.Sponsorable.SponsorshipsAsMaintainer.PageInfo.EndCursor)
 	}
 
 	return sponsors, nil
