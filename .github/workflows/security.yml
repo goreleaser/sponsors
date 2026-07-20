@@ -30,11 +30,11 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+      - uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
         with:
           languages: ${{ matrix.language }}
-      - uses: github/codeql-action/autobuild@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
-      - uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+      - uses: github/codeql-action/autobuild@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
+      - uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
 
   grype:
     runs-on: ubuntu-latest
@@ -52,7 +52,7 @@ jobs:
           path: "."
           fail-build: true
           severity-cutoff: critical
-      - uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+      - uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}
 
@@ -65,11 +65,11 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+      - uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
         with:
           output-format: sarif
           output-file: results.sarif
-      - uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+      - uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
         with:
           sarif_file: results.sarif
 
