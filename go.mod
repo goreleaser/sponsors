@@ -1,14 +1,14 @@
 module github.com/goreleaser/sponsors
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/caarlos0/log v0.6.2
 	github.com/charmbracelet/fang v1.0.0
 	github.com/shurcooL/githubv4 v0.0.0-20260209031235-2402fdf4a9ed
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/oauth2 v0.36.0
-	golang.org/x/sync v0.22.0
+	golang.org/x/oauth2 v0.37.0
+	golang.org/x/sync v0.23.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
