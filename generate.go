@@ -161,19 +161,33 @@ func generate(configPath, output string) error {
 		}
 	}
 
-	// Deduplicate by ID across sources, keeping the highest monthly amount.
+	// Deduplicate across sources by ID, name or website, keeping the highest
+	// monthly amount.
 	seenIdx := map[string]int{}
 	var deduped []rawSponsor
 	for _, s := range all {
-		key := strings.ToLower(s.id)
-		if idx, ok := seenIdx[key]; ok {
+		keys := dedupeKeys(s.id, s.name, s.website)
+		idx := -1
+		for _, k := range keys {
+			if i, ok := seenIdx[k]; ok {
+				idx = i
+				break
+			}
+		}
+		if idx >= 0 {
 			if s.monthlyUSD > deduped[idx].monthlyUSD {
 				deduped[idx] = s
 			}
-			continue
+		} else {
+			idx = len(deduped)
+			deduped = append(deduped, s)
 		}
-		seenIdx[key] = len(deduped)
-		deduped = append(deduped, s)
+		for _, k := range dedupeKeys(deduped[idx].id, deduped[idx].name, deduped[idx].website) {
+			seenIdx[k] = idx
+		}
+		for _, k := range keys {
+			seenIdx[k] = idx
+		}
 	}
 
 	// Assign tiers to fetched sponsors.
@@ -217,7 +231,7 @@ func generate(configPath, output string) error {
 		}
 		replaced := false
 		for i, s := range sponsors {
-			if strings.EqualFold(s.ID, ext.ID) {
+			if sameSponsor(s, ext.Sponsor) {
 				sponsors[i] = ext.Sponsor
 				replaced = true
 				break
@@ -264,4 +278,35 @@ func generate(configPath, output string) error {
 	}
 	log.Infof("wrote %d sponsor(s) to %s", len(sponsors), output)
 	return nil
+}
+
+// dedupeKeys returns the normalized identity keys of a sponsor.
+func dedupeKeys(id, name, website string) []string {
+	var keys []string
+	if v := strings.ToLower(strings.TrimSpace(id)); v != "" {
+		keys = append(keys, "id:"+v)
+	}
+	if v := strings.ToLower(strings.TrimSpace(name)); v != "" {
+		keys = append(keys, "name:"+v)
+	}
+	v := strings.ToLower(strings.TrimSpace(website))
+	v = strings.TrimPrefix(strings.TrimPrefix(v, "https://"), "http://")
+	v = strings.TrimPrefix(v, "www.")
+	if v = strings.TrimRight(v, "/"); v != "" {
+		keys = append(keys, "site:"+v)
+	}
+	return keys
+}
+
+func sameSponsor(a, b Sponsor) bool {
+	bk := map[string]bool{}
+	for _, k := range dedupeKeys(b.ID, b.Name, b.Website) {
+		bk[k] = true
+	}
+	for _, k := range dedupeKeys(a.ID, a.Name, a.Website) {
+		if bk[k] {
+			return true
+		}
+	}
+	return false
 }
