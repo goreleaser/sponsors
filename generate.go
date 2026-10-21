@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -14,6 +15,62 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
+
+// dedupe merges sponsors that share an ID or a website, keeping the one with
+// the highest monthly amount. The website match catches the same sponsor
+// using different accounts on GitHub and OpenCollective.
+func dedupe(sponsors []rawSponsor) []rawSponsor {
+	seen := map[string]int{}
+	var out []rawSponsor
+	for _, s := range sponsors {
+		keys := []string{"id:" + strings.ToLower(s.id)}
+		if site := websiteKey(s.website); site != "" {
+			keys = append(keys, "site:"+site)
+		}
+		idx := -1
+		for _, k := range keys {
+			if i, ok := seen[k]; ok {
+				idx = i
+				break
+			}
+		}
+		if idx == -1 {
+			idx = len(out)
+			out = append(out, s)
+		} else if s.monthlyUSD > out[idx].monthlyUSD {
+			out[idx] = s
+		}
+		for _, k := range keys {
+			seen[k] = idx
+		}
+	}
+	return out
+}
+
+// websiteKey returns a comparable form of a website URL: the lowercase host
+// without "www.". For hosts shared by many accounts, the path is kept too.
+func websiteKey(website string) string {
+	if website == "" {
+		return ""
+	}
+	if !strings.Contains(website, "://") {
+		website = "https://" + website
+	}
+	u, err := url.Parse(website)
+	if err != nil || u.Hostname() == "" {
+		return ""
+	}
+	host := strings.TrimPrefix(strings.ToLower(u.Hostname()), "www.")
+	switch host {
+	case "github.com", "gitlab.com", "linkedin.com", "opencollective.com", "twitter.com", "x.com":
+		path := strings.Trim(strings.ToLower(u.Path), "/")
+		if path == "" {
+			return ""
+		}
+		return host + "/" + path
+	}
+	return host
+}
 
 func newGenerateCmd() *cobra.Command {
 	var configPath string
@@ -161,20 +218,7 @@ func generate(configPath, output string) error {
 		}
 	}
 
-	// Deduplicate by ID across sources, keeping the highest monthly amount.
-	seenIdx := map[string]int{}
-	var deduped []rawSponsor
-	for _, s := range all {
-		key := strings.ToLower(s.id)
-		if idx, ok := seenIdx[key]; ok {
-			if s.monthlyUSD > deduped[idx].monthlyUSD {
-				deduped[idx] = s
-			}
-			continue
-		}
-		seenIdx[key] = len(deduped)
-		deduped = append(deduped, s)
-	}
+	deduped := dedupe(all)
 
 	// Assign tiers to fetched sponsors.
 	tierRank := map[string]int{}
