@@ -45,7 +45,7 @@ archives:
     wrap_in_directory: true
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     builds_info:
-      mtime: "{{ .CommitTimestamp }}"
+      mtime: "{{ .CommitDate }}"
 
 sboms:
   - artifacts: archive
